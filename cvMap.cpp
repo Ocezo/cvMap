@@ -17,7 +17,7 @@ Mat binToBinary(const Mat& roi, int num);
 
 int main(int argc, char* argv[])
 {
-    int num = 10; // résolution des iamges binaires finales
+    int num = 10; // résolution des images binaires finales
     Mat src, srcColor, srcColor2;
 
     src = imread("../CnDs.jpg", IMREAD_GRAYSCALE);
