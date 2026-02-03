@@ -9,7 +9,7 @@ using namespace std;
 using namespace cv;
 
 void extractROIs(const Mat& image, const vector<float>& horizontal_rhos, const vector<float>& vertical_rhos, bool reject, vector<Mat>& rois);
-bool isRoiEmpty(const Mat& roi, double varianceThreshold);
+bool isRoiEmpty(const Mat& roi, double varianceThreshold, bool info);
 Mat cropRoi(const cv::Mat& roi, int t);
 Mat remapToBinary(const Mat& roi, int num);
 vector<double> linspace(double start, double end, int num);
@@ -17,10 +17,10 @@ Mat binToBinary(const Mat& roi, int num);
 
 int main(int argc, char* argv[])
 {
-    int num = 10; // résolution des images binaires finales
+    int num = 15; // résolution des images binaires finales
     Mat src, srcColor, srcColor2;
 
-    src = imread("../grid.jpg", IMREAD_GRAYSCALE);
+    src = imread("../BnEs.jpg", IMREAD_GRAYSCALE);
     if (src.empty())
     {
         cerr << "Erreur de chargement de l'image !" << endl;
@@ -106,7 +106,7 @@ int main(int argc, char* argv[])
 
     // 3/ Extraction des imagettes (ROIs)
     vector<Mat> rois;
-    bool reject = false; // rejette les imagettes vides
+    bool reject = true; // rejette les imagettes vides
     extractROIs(src, horizontal_rhos, vertical_rhos, reject, rois);
 
     // Afficher les imagettes extraites
@@ -132,6 +132,7 @@ void extractROIs(const Mat& image, const vector<float>& horizontal_rhos, const v
     // On suppose ici que horizontal_rhos et horizontal_rhos sont déjà triés !
     int height, width;
 
+    // int k = 0;
     // Boucler sur les paires de lignes pour détecter les carrés et extraire les ROIs
     for (size_t i = 0; i < horizontal_rhos.size() - 1; ++i) {
         for (size_t j = 0; j < vertical_rhos.size() - 1; ++j) {
@@ -158,7 +159,8 @@ void extractROIs(const Mat& image, const vector<float>& horizontal_rhos, const v
                 continue; // Ignorer les carrés de largeur...
             }
 
-            // cout << "height = " << height << " - width = " << width << endl;
+            // cout << "k = " << k << " - height = " << height << " - width = " << width << endl;
+            // k++;
 
             // Extraire la ROI (imagette) correspondant au carré détecté
             Rect roi(topLeft, bottomRight);
@@ -169,7 +171,7 @@ void extractROIs(const Mat& image, const vector<float>& horizontal_rhos, const v
 
             // Rejeter les imagettes "vides" si le flag est activé
             if (reject) {
-                if (isRoiEmpty(imagetteCropped, 100.0)) { // /!\ seuil ajustable
+                if (isRoiEmpty(imagetteCropped, 100.0, false)) { // /!\ seuil ajustable
                     continue;
                 }
             }
@@ -179,13 +181,15 @@ void extractROIs(const Mat& image, const vector<float>& horizontal_rhos, const v
     }
 }
 
-bool isRoiEmpty(const Mat& roi, double varianceThreshold) {
+bool isRoiEmpty(const Mat& roi, double varianceThreshold, bool info) {
     // Calcul de la variance de l'intensité des pixels
     Mat mean, stddev;
     meanStdDev(roi, mean, stddev);
     double variance = stddev.at<double>(0) * stddev.at<double>(0);
 
-    // cout << "mean = " << mean.at<double>(0) << " - variance = " << variance << endl;
+    if (info) {
+        cout << "mean = " << mean.at<double>(0) << " - variance = " << variance << endl;
+    }
 
     // Définir un seuil de variance pour identifier les images "vides"
     return variance < varianceThreshold; // Ajuste le seuil selon les essais
@@ -267,7 +271,7 @@ Mat binToBinary(const Mat& roi, int num) {
             Mat pixel = roi(square).clone();
             // imwrite("../img/current_pixel.jpg", pixel);
 
-            if (isRoiEmpty(pixel, 100.0)) { // /!\ seuil ajustable
+            if (isRoiEmpty(pixel, 100.0, false)) { // /!\ seuil ajustable
                 binary.at<uchar>(i, j) = 255;
             }
             else {
