@@ -1,7 +1,8 @@
 .vscode/
 build/
-img/binning/*.jpg
-img/rois/*.jpg
 harris.jpg
 lines.jpg
+img/rois/*.jpg
+img/binning/*.jpg
+img/warping/*.jpg
 
