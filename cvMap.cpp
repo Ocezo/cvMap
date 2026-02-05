@@ -10,9 +10,10 @@ using namespace std;
 using namespace cv;
 
 void extractROIs(const Mat& image, const vector<float>& horizontal_rhos, const vector<float>& vertical_rhos, bool reject, vector<Mat>& rois);
+void augmentROIs(vector<Mat>& rois, unsigned int scale);
 bool isRoiEmpty(const Mat& roi, double varianceThreshold, bool info);
 Mat cropRoi(const Mat& roi, int t);
-Mat warpRoi(const Mat& roi, double theta_deg, double phi_deg, double l1, double l2, double tx, double ty, int margin);
+Mat warpRoi(const Mat& roi, double theta_deg, double phi_deg, double l1, double l2, double tx, double ty, bool remap);
 Mat resizeRoi(const Mat& img, int outSize);
 Mat remapToBinary(const Mat& roi, int num);
 vector<double> linspace(double start, double end, int num);
@@ -112,14 +113,10 @@ int main(int argc, char* argv[])
     bool reject = true; // rejette les imagettes vides
     extractROIs(src, horizontal_rhos, vertical_rhos, reject, rois);
 
-    // Appliquer la transformation affine à chaque ROI
-    for (size_t k = 0; k < rois.size(); ++k) {
-        Mat roiRaw = warpRoi(rois[k], -30, -70, 0.8, 1.2, 0, 0, 2);
-        Mat roiWarped = resizeRoi(roiRaw, 48);
-        imwrite("../img/warping/warp_" + to_string(k) + ".jpg", roiWarped);
-    }
+    // 4/ Augmentation des imagettes (ROIs)
+    augmentROIs(rois, 10); // scale factor between 1 and 10
 
-    // Afficher les imagettes extraites
+    // 5/ Afficher les imagettes extraites
     for (size_t k = 0; k < rois.size(); ++k) {
         imwrite("../img/rois/roi_" + to_string(k) + ".jpg", rois[k]);
 
@@ -191,6 +188,99 @@ void extractROIs(const Mat& image, const vector<float>& horizontal_rhos, const v
     }
 }
 
+void augmentROIs(vector<Mat>& rois, unsigned int scale)
+{
+    // Augmentation des ROIs par translation et warping
+    scale = clamp(scale, 1u, 10u); // scale factor between 1 and 10
+
+    vector<Mat> rois_aug;
+    rois_aug.reserve(rois.size() * scale);
+
+    if (rois.size() % 2 != 0) {
+        cerr << "Warning: rois size is not even!\n";
+    }
+
+    for (size_t k = 0; k < rois.size() / 2; ++k)
+    {
+        const Mat& roi_even = rois[2*k];
+        const Mat& roi_odd  = rois[2*k + 1];
+
+        Mat r;
+
+        // x1 Original
+        if (scale > 0) {
+            rois_aug.push_back(roi_even);
+            rois_aug.push_back(roi_odd);
+        }
+
+        // x2 Translation droite
+        if (scale > 1) {
+            rois_aug.push_back(warpRoi(roi_even, 0,0,1,1, 4,0,false));
+            rois_aug.push_back(warpRoi(roi_odd , 0,0,1,1, 4,0,false));
+        }
+
+        // x3 Translation gauche
+        if (scale > 2) {
+            rois_aug.push_back(warpRoi(roi_even, 0,0,1,1,-4,0,false));
+            rois_aug.push_back(warpRoi(roi_odd , 0,0,1,1,-4,0,false));
+        }
+
+        // x4 Translation bas
+        if (scale > 3) {
+            rois_aug.push_back(warpRoi(roi_even, 0,0,1,1,0,4,false));
+            rois_aug.push_back(warpRoi(roi_odd , 0,0,1,1,0,4,false));
+        }
+
+        // x5 Translation haut
+        if (scale > 4) {
+            rois_aug.push_back(warpRoi(roi_even, 0,0,1,1,0,-4,false));
+            rois_aug.push_back(warpRoi(roi_odd , 0,0,1,1,0,-4,false));
+        }
+
+        // x6 Warp droite fort
+        if (scale > 5) {
+            r = warpRoi(roi_even, 20,20,1.2,0.8,0,0,true);
+            rois_aug.push_back(resizeRoi(r,48));
+            r = warpRoi(roi_odd, 20,20,1.2,0.8,0,0,true);
+            rois_aug.push_back(resizeRoi(r,48));
+        }
+
+        // x7 Warp droite léger
+        if (scale > 6) {
+            r = warpRoi(roi_even, 10,10,1,1,0,0,true);
+            rois_aug.push_back(resizeRoi(r,48));
+            r = warpRoi(roi_odd, 10,10,1,1,0,0,true);
+            rois_aug.push_back(resizeRoi(r,48));
+        }
+
+        // x8 Warp gauche fort
+        if (scale > 7) {
+            r = warpRoi(roi_even, -20,-70,0.8,1.2,0,0,true);
+            rois_aug.push_back(resizeRoi(r,48));
+            r = warpRoi(roi_odd, -20,-70,0.8,1.2,0,0,true);
+            rois_aug.push_back(resizeRoi(r,48));
+        }
+
+        // x9 Warp gauche léger
+        if (scale > 8) {
+            r = warpRoi(roi_even, -10,-35,1,1,0,0,true);
+            rois_aug.push_back(resizeRoi(r,48));
+            r = warpRoi(roi_odd, -10,-35,1,1,0,0,true);
+            rois_aug.push_back(resizeRoi(r,48));
+        }
+
+        // x10 Warp central
+        if (scale > 9) {
+            r = warpRoi(roi_even, -5,5,1,1,0,0,true);
+            rois_aug.push_back(resizeRoi(r,48));
+            r = warpRoi(roi_odd, -5,5,1,1,0,0,true);
+            rois_aug.push_back(resizeRoi(r,48));
+        }
+    }
+
+    rois = move(rois_aug);
+}
+
 bool isRoiEmpty(const Mat& roi, double varianceThreshold, bool info) {
     // Calcul de la variance de l'intensité des pixels
     Mat mean, stddev;
@@ -231,7 +321,7 @@ Matx22d R(double a)
 Mat warpRoi(const Mat& roi, double theta_deg, double phi_deg,
                             double l1, double l2,
                             double tx, double ty,
-                            int margin = 2) // safety border px
+                            bool remap = true)
 {
     // Déformation d'une ROI suivant une transformation affine
     double theta = theta_deg * CV_PI / 180.0;   // rotation globale
@@ -245,45 +335,55 @@ Mat warpRoi(const Mat& roi, double theta_deg, double phi_deg,
     Matx23d M(A(0,0), A(0,1), tx,
               A(1,0), A(1,1), ty);
 
-    // 4 coins pour les limites
-    vector<Point2d> corners = {
-        {0.0, 0.0},
-        {(double)roi.cols, 0.0},
-        {(double)roi.cols, (double)roi.rows},
-        {0.0, (double)roi.rows}
-    };
+    Size dsize;
 
-    auto apply = [&](const Point2d& p) -> Point2d {
-        return {
-            M(0,0)*p.x + M(0,1)*p.y + M(0,2),
-            M(1,0)*p.x + M(1,1)*p.y + M(1,2)
+    if (!remap) {
+        // Pas d'ajustement de la taille de sortie
+        dsize = roi.size();
+    }
+    else {
+        // Ajustement de la taille de sortie basée sur les 4 coins de la ROI
+        vector<Point2d> corners = {
+            {0.0, 0.0},
+            {(double)roi.cols, 0.0},
+            {(double)roi.cols, (double)roi.rows},
+            {0.0, (double)roi.rows}
         };
-    };
 
-    double minX =  1e18, minY =  1e18;
-    double maxX = -1e18, maxY = -1e18;
-    for (const auto& c : corners) {
-        Point2d q = apply(c);
-        minX = min(minX, q.x);
-        minY = min(minY, q.y);
-        maxX = max(maxX, q.x);
-        maxY = max(maxY, q.y);
+        auto apply = [&](const Point2d& p) -> Point2d {
+            return {
+                M(0,0)*p.x + M(0,1)*p.y + M(0,2),
+                M(1,0)*p.x + M(1,1)*p.y + M(1,2)
+            };
+        };
+
+        double minX =  1e18, minY =  1e18;
+        double maxX = -1e18, maxY = -1e18;
+        for (const auto& c : corners) {
+            Point2d q = apply(c);
+            minX = min(minX, q.x);
+            minY = min(minY, q.y);
+            maxX = max(maxX, q.x);
+            maxY = max(maxY, q.y);
+        }
+
+        int margin = 2; // safety border in px
+
+        // Output size = bbox + margin
+        int outW = (int)ceil(maxX - minX) + 2*margin;
+        int outH = (int)ceil(maxY - minY) + 2*margin;
+        outW = max(outW, 1);
+        outH = max(outH, 1);
+
+        // Shift so that minX/minY becomes margin
+        M(0,2) += (-minX + margin);
+        M(1,2) += (-minY + margin);
+
+        // Output size:
+        dsize = Size(outW, outH);
     }
 
-    // Output size = bbox + margin
-    int outW = (int)ceil(maxX - minX) + 2*margin;
-    int outH = (int)ceil(maxY - minY) + 2*margin;
-    outW = max(outW, 1);
-    outH = max(outH, 1);
-
-    // Shift so that minX/minY becomes margin
-    M(0,2) += (-minX + margin);
-    M(1,2) += (-minY + margin);
-
-    // Output size:
-    Size dsize = Size(outW, outH);
-
-    // Border: fill with white so the background stays clean for a letter
+    // Border: fill in with white background
     Mat dst;
     warpAffine(
         roi, dst, Mat(M), dsize,
@@ -292,7 +392,7 @@ Mat warpRoi(const Mat& roi, double theta_deg, double phi_deg,
         Scalar(255)
     );
 
-    // Retourner l'imagette warpée
+    // Retourne l'imagette warpée
     return dst;
 }
 
