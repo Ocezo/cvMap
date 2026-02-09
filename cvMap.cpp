@@ -24,7 +24,7 @@ int main(int argc, char* argv[])
     int num = 15; // résolution des images binaires finales
     Mat src, srcColor, srcColor2;
 
-    src = imread("../BnEs.jpg", IMREAD_GRAYSCALE);
+    src = imread("../img/in/BnEs.jpg", IMREAD_GRAYSCALE);
     if (src.empty())
     {
         cerr << "Erreur de chargement de l'image !" << endl;
@@ -56,7 +56,7 @@ int main(int argc, char* argv[])
         }
     }
 
-    imwrite("../img/harris.jpg", srcColor);
+    imwrite("../img/out/harris.jpg", srcColor);
 
     // 2/ Hough lines
     double h = src.size().height;
@@ -103,7 +103,7 @@ int main(int argc, char* argv[])
         }
     }
 
-    imwrite("../img/lines.jpg", srcColor2);
+    imwrite("../img/out/lines.jpg", srcColor2);
 
     sort(horizontal_rhos.begin(), horizontal_rhos.end());
     sort(vertical_rhos.begin(), vertical_rhos.end());
@@ -118,16 +118,16 @@ int main(int argc, char* argv[])
 
     // 5/ Afficher les imagettes extraites
     for (size_t k = 0; k < rois.size(); ++k) {
-        imwrite("../img/rois/roi_" + to_string(k) + ".jpg", rois[k]);
+        imwrite("../img/out/rois/roi_" + to_string(k) + ".jpg", rois[k]);
 
         // Binning des rois en num x num
         Mat binary = binToBinary(rois[k], num);
         // cout << "Image binaire " << num << "x" << num << " :\n" << binary << endl;
-        imwrite("../img/binning/roi_nxn_" + to_string(k) + ".jpg", binary);
+        imwrite("../img/out/binning/roi_nxn_" + to_string(k) + ".jpg", binary);
 
         // Resize des rois en num x num
         // Mat binary2 = remapToBinary(rois[k], num);
-        // imwrite("../img/resize/roi_nxn_" + to_string(k) + ".jpg", binary2);
+        // imwrite("../img/out/resize/roi_nxn_" + to_string(k) + ".jpg", binary2);
     }
     
     waitKey(0);
@@ -174,7 +174,7 @@ void extractROIs(const Mat& image, const vector<float>& horizontal_rhos, const v
             Mat imagette = image(roi).clone();
 
             Mat imagetteCropped = cropRoi(imagette, 5);
-            // imwrite("../img/current_roi.jpg", imagetteCropped);
+            // imwrite("../img/out/current_roi.jpg", imagetteCropped);
 
             // Rejeter les imagettes "vides" si le flag est activé
             if (reject) {
@@ -482,7 +482,7 @@ Mat binToBinary(const Mat& roi, int num) {
     //     line(roiColor, pt1, pt2, Scalar(0, 255, 0), 1, LINE_AA); // ligne en vert
     // }
 
-    // imwrite("../img/rois_color.jpg", roiColor);
+    // imwrite("../img/out/rois_color.jpg", roiColor);
 
     for (size_t i = 0; i < horizontals.size() - 1; ++i) {
         for (size_t j = 0; j < verticals.size() - 1; ++j) {
@@ -492,7 +492,7 @@ Mat binToBinary(const Mat& roi, int num) {
 
             Rect square(topLeft, bottomRight);
             Mat pixel = roi(square).clone();
-            // imwrite("../img/current_pixel.jpg", pixel);
+            // imwrite("../img/out/current_pixel.jpg", pixel);
 
             if (isRoiEmpty(pixel, 100.0, false)) { // /!\ seuil ajustable
                 binary.at<uchar>(i, j) = 255;
