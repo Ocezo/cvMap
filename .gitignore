@@ -1,6 +1,5 @@
 .vscode/
 build/
-tools/
 img/out/harris.jpg
 img/out/lines.jpg
 img/out/rois/*.jpg
