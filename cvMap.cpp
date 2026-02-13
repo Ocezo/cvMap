@@ -22,107 +22,26 @@ Mat binToBinary(const Mat& roi, int num);
 
 int main(int argc, char* argv[])
 {
-    int num = 16;          // résolution des images binaires finales
-    char even_label = '0'; // label des indices pairs
-    char odd_label  = '1'; // label des indices impairs
-    unsigned int scale_factor = 10; // facteur d'expansion du dataset
-    
-    Mat src, srcColor, srcColor2;
+    const int num = 16;                     // résolution des images binaires finales
+    const unsigned int scale_factor = 10;   // facteur d'expansion du dataset : 1..10
+    const bool reject = true;               // rejette les imagettes vides
+    const size_t char_per_line = 140;       // nombre de labels par ligne
 
-    src = imread("../img/in/figures/0n1s.jpg", IMREAD_GRAYSCALE);
-    if (src.empty())
-    {
-        cerr << "Erreur de chargement de l'image !" << endl;
-        return -1;
-    }
+    struct DatasetSpec {
+        string filename;
+        string tag;
+        char even_label;
+        char odd_label;
+    };
 
-    // 1/ Harris corners
-    Mat harrisResponse;
+    const vector<DatasetSpec> datasets = {
+        {"0n1s.jpg", "0n1s", '0', '1'},
+        {"2n3s.jpg", "2n3s", '2', '3'},
+        {"4n5s.jpg", "4n5s", '4', '5'},
+        {"6n7s.jpg", "6n7s", '6', '7'},
+        {"8n9s.jpg", "8n9s", '8', '9'}
+    };
 
-    // Créer une copie en couleur de l'image
-    cvtColor(src, srcColor, COLOR_GRAY2BGR);
-
-    // Détection des coins de Harris
-    cornerHarris(src, harrisResponse, 2, 3, 0.04);
-
-    // Normaliser les valeurs pour faciliter le seuillage
-    Mat harrisNorm;
-    normalize(harrisResponse, harrisNorm, 0, 255, NORM_MINMAX, CV_32FC1);
-
-    // Incrustation des coins détectés en rouge
-    for (int y = 0; y < harrisNorm.rows; y++)
-    {
-        for (int x = 0; x < harrisNorm.cols; x++)
-        {
-            if ((int)harrisNorm.at<float>(y, x) > 100) // /!\ threshold 80 -> 160
-            {
-                circle(srcColor, Point(x, y), 1, Scalar(0, 0, 255), FILLED); // Rouge
-            }
-        }
-    }
-
-    imwrite("../img/out/harris.jpg", srcColor);
-
-    // 2/ Hough lines
-    double h = src.size().height;
-    double w = src.size().width;
-
-    // Créer une copie en couleur de l'image
-    cvtColor(src, srcColor2, COLOR_GRAY2BGR);
-
-    // Détection des bords avec Canny pour la transformation de Hough
-    Mat edges;
-    Canny(src, edges, 50, 150);
-    // imshow("Edges", edges);
-
-    // Détection des lignes avec Hough
-    vector<Vec2f> lines;
-    vector<float> horizontal_rhos, vertical_rhos;
-    HoughLines(edges, lines, 1, CV_PI / 180, 500); // /!\ Paramètre ajustable : 100->500
-
-    // Filtrage et dessin des lignes horizontales et verticales
-    for (size_t i = 0; i < lines.size(); i++)
-    {
-        float rho = lines[i][0], theta = lines[i][1];
-        // On conserve les lignes proches  de la verticale ((theta proche de 0 ou π)
-        if (abs(theta) < CV_PI / 36 || abs(theta - CV_PI) < CV_PI / 36)
-        {
-            double a = cos(theta), b = sin(theta);
-            double x0 = a * rho, y0 = b * rho;
-            Point pt1(cvRound(x0 + h * (-b)), cvRound(y0 + h * (a)));
-            Point pt2(cvRound(x0 - h * (-b)), cvRound(y0 - h * (a)));
-            line(srcColor2, pt1, pt2, Scalar(0, 255, 0), 1, LINE_AA); // Lignes en vert
-            // cout << ". Hori - theta = " << theta << " rad - rho = " << rho << " px" << endl;
-            vertical_rhos.push_back(rho);
-        }
-        // On conserve les lignes proches de l'horizontale (theta proche de π/2)
-        if (abs(theta - CV_PI / 2) < CV_PI / 36)
-        {
-            double a = cos(theta), b = sin(theta);
-            double x0 = a * rho, y0 = b * rho;
-            Point pt1(cvRound(x0 + w * (-b)), cvRound(y0 + w * (a)));
-            Point pt2(cvRound(x0 - w * (-b)), cvRound(y0 - w * (a)));
-            line(srcColor2, pt1, pt2, Scalar(0, 255, 255), 1, LINE_AA); // Lignes en jaune
-            // cout << ". Vert - theta = " << theta << " rad - rho = " << rho << " px" << endl;
-            horizontal_rhos.push_back(rho);
-        }
-    }
-
-    imwrite("../img/out/lines.jpg", srcColor2);
-
-    sort(horizontal_rhos.begin(), horizontal_rhos.end());
-    sort(vertical_rhos.begin(), vertical_rhos.end());
-
-    // 3/ Extraction des imagettes (ROIs)
-    vector<Mat> rois;
-    bool reject = true; // rejette les imagettes vides
-    extractROIs(src, horizontal_rhos, vertical_rhos, reject, rois);
-
-    // 4/ Augmentation des imagettes (ROIs)
-    augmentROIs(rois, scale_factor); // scale factor between 1 and 10
-
-    // 5/ Création d'un fichier d'étiquettes
-    int char_per_line = 140;
     ofstream labelsFile("../img/out/labels.txt");
     if (!labelsFile.is_open())
     {
@@ -130,27 +49,103 @@ int main(int argc, char* argv[])
         return -1;
     }
 
-    // 6/ Afficher les imagettes extraites
-    for (size_t k = 0; k < rois.size(); ++k) {
-        imwrite("../img/out/rois/roi_" + to_string(k) + ".jpg", rois[k]);
+    size_t global_roi_index = 0;
+    size_t written_labels = 0;
 
-        // Binning des rois en num x num
-        Mat binary = binToBinary(rois[k], num);
-        // cout << "Image binaire " << num << "x" << num << " :\n" << binary << endl;
-        imwrite("../img/out/binning/roi_nxn_" + to_string(k) + ".jpg", binary);
+    for (const DatasetSpec& dataset : datasets)
+    {
+        Mat src = imread("../img/in/figures/" + dataset.filename, IMREAD_GRAYSCALE);
+        if (src.empty())
+        {
+            cerr << "Erreur de chargement de l'image: " << dataset.filename << endl;
+            return -1;
+        }
 
-        // Resize des rois en num x num
-        // Mat binary2 = remapToBinary(rois[k], num);
-        // imwrite("../img/out/resize/roi_nxn_" + to_string(k) + ".jpg", binary2);
+        Mat srcColor, srcColor2;
 
-        // Ecriture des étiquettes: index pair -> '0', index impair -> '1'
-        labelsFile << ((k % 2 == 0) ? even_label : odd_label);
-        if ((k + 1) % char_per_line == 0) {
-            labelsFile << '\n';
+        // 1/ Harris corners
+        Mat harrisResponse;
+        cvtColor(src, srcColor, COLOR_GRAY2BGR);
+        cornerHarris(src, harrisResponse, 2, 3, 0.04);
+
+        Mat harrisNorm;
+        normalize(harrisResponse, harrisNorm, 0, 255, NORM_MINMAX, CV_32FC1);
+
+        for (int y = 0; y < harrisNorm.rows; y++)
+        {
+            for (int x = 0; x < harrisNorm.cols; x++)
+            {
+                if ((int)harrisNorm.at<float>(y, x) > 100) // /!\ Seuil ajustable : 80 -> 160
+                {
+                    circle(srcColor, Point(x, y), 1, Scalar(0, 0, 255), FILLED); // Rouge
+                }
+            }
+        }
+        imwrite("../img/out/harris_" + dataset.tag + ".jpg", srcColor);
+
+        // 2/ Hough lines
+        double h = src.size().height;
+        double w = src.size().width;
+        cvtColor(src, srcColor2, COLOR_GRAY2BGR);
+
+        Mat edges;
+        Canny(src, edges, 50, 150);
+
+        vector<Vec2f> lines;
+        vector<float> horizontal_rhos, vertical_rhos;
+        HoughLines(edges, lines, 1, CV_PI / 180, 500); // /!\ Seuil ajustable : 100->500
+
+        for (size_t i = 0; i < lines.size(); i++)
+        {
+            float rho = lines[i][0], theta = lines[i][1];
+            if (abs(theta) < CV_PI / 36 || abs(theta - CV_PI) < CV_PI / 36)
+            {
+                double a = cos(theta), b = sin(theta);
+                double x0 = a * rho, y0 = b * rho;
+                Point pt1(cvRound(x0 + h * (-b)), cvRound(y0 + h * (a)));
+                Point pt2(cvRound(x0 - h * (-b)), cvRound(y0 - h * (a)));
+                line(srcColor2, pt1, pt2, Scalar(0, 255, 0), 1, LINE_AA);
+                vertical_rhos.push_back(rho);
+            }
+            if (abs(theta - CV_PI / 2) < CV_PI / 36)
+            {
+                double a = cos(theta), b = sin(theta);
+                double x0 = a * rho, y0 = b * rho;
+                Point pt1(cvRound(x0 + w * (-b)), cvRound(y0 + w * (a)));
+                Point pt2(cvRound(x0 - w * (-b)), cvRound(y0 - w * (a)));
+                line(srcColor2, pt1, pt2, Scalar(0, 255, 255), 1, LINE_AA);
+                horizontal_rhos.push_back(rho);
+            }
+        }
+        imwrite("../img/out/lines_" + dataset.tag + ".jpg", srcColor2);
+
+        sort(horizontal_rhos.begin(), horizontal_rhos.end());
+        sort(vertical_rhos.begin(), vertical_rhos.end());
+
+        // 3/ Extraction des imagettes (ROIs)
+        vector<Mat> rois;
+        extractROIs(src, horizontal_rhos, vertical_rhos, reject, rois);
+
+        // 4/ Augmentation des imagettes (ROIs)
+        augmentROIs(rois, scale_factor); // scale factor between 1 and 10
+
+        // 5/ Sauvegarde des imagettes + labels
+        for (size_t k = 0; k < rois.size(); ++k) {
+            const size_t l = global_roi_index++;
+            imwrite("../img/out/rois/roi_" + to_string(l) + ".jpg", rois[k]);
+
+            Mat binary = binToBinary(rois[k], num);
+            imwrite("../img/out/binning/roi_nxn_" + to_string(l) + ".jpg", binary);
+
+            labelsFile << ((k % 2 == 0) ? dataset.even_label : dataset.odd_label);
+            ++written_labels;
+            if (written_labels % char_per_line == 0) {
+                labelsFile << '\n';
+            }
         }
     }
 
-    if (rois.size() % char_per_line != 0) {
+    if (written_labels % char_per_line != 0) {
         labelsFile << '\n';
     }
     labelsFile.close();
