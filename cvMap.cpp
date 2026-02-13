@@ -2,6 +2,7 @@
 // CPP program to Map letters
 #include <cmath>
 #include <vector>
+#include <fstream>
 #include <iostream>
 #include <algorithm>
 #include <opencv2/opencv.hpp>
@@ -21,7 +22,11 @@ Mat binToBinary(const Mat& roi, int num);
 
 int main(int argc, char* argv[])
 {
-    int num = 16; // résolution des images binaires finales
+    int num = 16;          // résolution des images binaires finales
+    char even_label = '0'; // label des indices pairs
+    char odd_label  = '1'; // label des indices impairs
+    unsigned int scale_factor = 10; // facteur d'expansion du dataset
+    
     Mat src, srcColor, srcColor2;
 
     src = imread("../img/in/figures/0n1s.jpg", IMREAD_GRAYSCALE);
@@ -114,9 +119,18 @@ int main(int argc, char* argv[])
     extractROIs(src, horizontal_rhos, vertical_rhos, reject, rois);
 
     // 4/ Augmentation des imagettes (ROIs)
-    augmentROIs(rois, 1); // scale factor between 1 and 10
+    augmentROIs(rois, scale_factor); // scale factor between 1 and 10
 
-    // 5/ Afficher les imagettes extraites
+    // 5/ Création d'un fichier d'étiquettes
+    int char_per_line = 140;
+    ofstream labelsFile("../img/out/labels.txt");
+    if (!labelsFile.is_open())
+    {
+        cerr << "Erreur d'ouverture du fichier labels.txt !" << endl;
+        return -1;
+    }
+
+    // 6/ Afficher les imagettes extraites
     for (size_t k = 0; k < rois.size(); ++k) {
         imwrite("../img/out/rois/roi_" + to_string(k) + ".jpg", rois[k]);
 
@@ -128,8 +142,19 @@ int main(int argc, char* argv[])
         // Resize des rois en num x num
         // Mat binary2 = remapToBinary(rois[k], num);
         // imwrite("../img/out/resize/roi_nxn_" + to_string(k) + ".jpg", binary2);
+
+        // Ecriture des étiquettes: index pair -> '0', index impair -> '1'
+        labelsFile << ((k % 2 == 0) ? even_label : odd_label);
+        if ((k + 1) % char_per_line == 0) {
+            labelsFile << '\n';
+        }
     }
-    
+
+    if (rois.size() % char_per_line != 0) {
+        labelsFile << '\n';
+    }
+    labelsFile.close();
+
     waitKey(0);
     return 0;
 }
