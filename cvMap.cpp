@@ -24,7 +24,7 @@ int main(int argc, char* argv[])
     int num = 16; // résolution des images binaires finales
     Mat src, srcColor, srcColor2;
 
-    src = imread("../img/in/letters/BnEs.jpg", IMREAD_GRAYSCALE);
+    src = imread("../img/in/grid/grid.jpg", IMREAD_GRAYSCALE);
     if (src.empty())
     {
         cerr << "Erreur de chargement de l'image !" << endl;
@@ -110,11 +110,11 @@ int main(int argc, char* argv[])
 
     // 3/ Extraction des imagettes (ROIs)
     vector<Mat> rois;
-    bool reject = true; // rejette les imagettes vides
+    bool reject = false; // rejette les imagettes vides
     extractROIs(src, horizontal_rhos, vertical_rhos, reject, rois);
 
     // 4/ Augmentation des imagettes (ROIs)
-    augmentROIs(rois, 10); // scale factor between 1 and 10
+    augmentROIs(rois, 1); // scale factor between 1 and 10
 
     // 5/ Afficher les imagettes extraites
     for (size_t k = 0; k < rois.size(); ++k) {
