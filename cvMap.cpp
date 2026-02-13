@@ -21,10 +21,10 @@ Mat binToBinary(const Mat& roi, int num);
 
 int main(int argc, char* argv[])
 {
-    int num = 15; // résolution des images binaires finales
+    int num = 16; // résolution des images binaires finales
     Mat src, srcColor, srcColor2;
 
-    src = imread("../img/in/BnEs.jpg", IMREAD_GRAYSCALE);
+    src = imread("../img/in/letters/BnEs.jpg", IMREAD_GRAYSCALE);
     if (src.empty())
     {
         cerr << "Erreur de chargement de l'image !" << endl;
@@ -49,7 +49,7 @@ int main(int argc, char* argv[])
     {
         for (int x = 0; x < harrisNorm.cols; x++)
         {
-            if ((int)harrisNorm.at<float>(y, x) > 80) // /!\ threshold
+            if ((int)harrisNorm.at<float>(y, x) > 100) // /!\ threshold 80 -> 160
             {
                 circle(srcColor, Point(x, y), 1, Scalar(0, 0, 255), FILLED); // Rouge
             }
