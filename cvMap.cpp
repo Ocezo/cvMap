@@ -24,7 +24,7 @@ int main(int argc, char* argv[])
     int num = 16; // résolution des images binaires finales
     Mat src, srcColor, srcColor2;
 
-    src = imread("../img/in/letters/BnEs.jpg", IMREAD_GRAYSCALE);
+    src = imread("../img/in/figures/0n1s.jpg", IMREAD_GRAYSCALE);
     if (src.empty())
     {
         cerr << "Erreur de chargement de l'image !" << endl;
@@ -114,7 +114,7 @@ int main(int argc, char* argv[])
     extractROIs(src, horizontal_rhos, vertical_rhos, reject, rois);
 
     // 4/ Augmentation des imagettes (ROIs)
-    augmentROIs(rois, 10); // scale factor between 1 and 10
+    augmentROIs(rois, 1); // scale factor between 1 and 10
 
     // 5/ Afficher les imagettes extraites
     for (size_t k = 0; k < rois.size(); ++k) {
