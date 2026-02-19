@@ -22,7 +22,7 @@ Mat binToBinary(const Mat& roi, int num);
 
 int main(int argc, char* argv[])
 {
-    const int num = 16;                     // résolution des images binaires finales
+    const int num = 32;                     // résolution des images binaires finales
     const unsigned int scale_factor = 10;   // facteur d'expansion du dataset : 1..10
     const bool reject = true;               // rejette les imagettes vides
     const size_t char_per_line = 140;       // nombre de labels par ligne
@@ -81,7 +81,7 @@ int main(int argc, char* argv[])
                 }
             }
         }
-        imwrite("../img/out/harris_" + dataset.tag + ".jpg", srcColor);
+        imwrite("../img/out/harris/harris_" + dataset.tag + ".jpg", srcColor);
 
         // 2/ Hough lines
         double h = src.size().height;
@@ -117,7 +117,7 @@ int main(int argc, char* argv[])
                 horizontal_rhos.push_back(rho);
             }
         }
-        imwrite("../img/out/lines_" + dataset.tag + ".jpg", srcColor2);
+        imwrite("../img/out/lines/lines_" + dataset.tag + ".jpg", srcColor2);
 
         sort(horizontal_rhos.begin(), horizontal_rhos.end());
         sort(vertical_rhos.begin(), vertical_rhos.end());
@@ -134,7 +134,10 @@ int main(int argc, char* argv[])
             const size_t l = global_roi_index++;
             imwrite("../img/out/rois/roi_" + to_string(l) + ".jpg", rois[k]);
 
-            Mat binary = binToBinary(rois[k], num);
+            // Mat binary = binToBinary(rois[k], num);
+            // imwrite("../img/out/binning/roi_nxn_" + to_string(l) + ".jpg", binary);
+
+            Mat binary = remapToBinary(rois[k], num);
             imwrite("../img/out/binning/roi_nxn_" + to_string(l) + ".jpg", binary);
 
             labelsFile << ((k % 2 == 0) ? dataset.even_label : dataset.odd_label);
