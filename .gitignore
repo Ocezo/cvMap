@@ -1,3 +1,8 @@
 .vscode/
 build/
+img/out/labels.txt
+img/out/harris/*.jpg
+img/out/lines/*.jpg
+img/out/rois/*.jpg
+img/out/binning/*.jpg
 
