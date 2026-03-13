@@ -1,5 +1,4 @@
-
-// CPP program to Map letters
+// C++ program to build a handwritten character dataset
 #include <cmath>
 #include <vector>
 #include <fstream>
@@ -22,10 +21,10 @@ Mat binToBinary(const Mat& roi, int num);
 
 int main(int argc, char* argv[])
 {
-    const int num = 32;                     // résolution des images binaires finales
-    const unsigned int scale_factor = 10;   // facteur d'expansion du dataset : 1..10
-    const bool reject = true;               // rejette les imagettes vides
-    const size_t char_per_line = 140;       // nombre de labels par ligne
+    const int num = 32;                     // final binary image resolution
+    const unsigned int scale_factor = 10;   // dataset expansion factor: 1..10
+    const bool reject = true;               // reject empty samples
+    const size_t char_per_line = 140;       // number of labels per line
 
     struct DatasetSpec {
         string filename;
@@ -45,7 +44,7 @@ int main(int argc, char* argv[])
     ofstream labelsFile("../img/out/labels.txt");
     if (!labelsFile.is_open())
     {
-        cerr << "Erreur d'ouverture du fichier labels.txt !" << endl;
+        cerr << "Failed to open labels.txt." << endl;
         return -1;
     }
 
@@ -57,7 +56,7 @@ int main(int argc, char* argv[])
         Mat src = imread("../img/in/figures/" + dataset.filename, IMREAD_GRAYSCALE);
         if (src.empty())
         {
-            cerr << "Erreur de chargement de l'image: " << dataset.filename << endl;
+            cerr << "Failed to load image: " << dataset.filename << endl;
             return -1;
         }
 
@@ -75,9 +74,9 @@ int main(int argc, char* argv[])
         {
             for (int x = 0; x < harrisNorm.cols; x++)
             {
-                if ((int)harrisNorm.at<float>(y, x) > 100) // /!\ Seuil ajustable : 80 -> 160
+                if ((int)harrisNorm.at<float>(y, x) > 100) // /!\ Adjustable threshold: 80 -> 160
                 {
-                    circle(srcColor, Point(x, y), 1, Scalar(0, 0, 255), FILLED); // Rouge
+                    circle(srcColor, Point(x, y), 1, Scalar(0, 0, 255), FILLED); // Red
                 }
             }
         }
@@ -93,7 +92,7 @@ int main(int argc, char* argv[])
 
         vector<Vec2f> lines;
         vector<float> horizontal_rhos, vertical_rhos;
-        HoughLines(edges, lines, 1, CV_PI / 180, 500); // /!\ Seuil ajustable : 100->500
+        HoughLines(edges, lines, 1, CV_PI / 180, 500); // /!\ Adjustable threshold: 100 -> 500
 
         for (size_t i = 0; i < lines.size(); i++)
         {
@@ -122,14 +121,14 @@ int main(int argc, char* argv[])
         sort(horizontal_rhos.begin(), horizontal_rhos.end());
         sort(vertical_rhos.begin(), vertical_rhos.end());
 
-        // 3/ Extraction des imagettes (ROIs)
+        // 3/ ROI extraction
         vector<Mat> rois;
         extractROIs(src, horizontal_rhos, vertical_rhos, reject, rois);
 
-        // 4/ Augmentation des imagettes (ROIs)
+        // 4/ ROI augmentation
         augmentROIs(rois, scale_factor); // scale factor between 1 and 10
 
-        // 5/ Sauvegarde des imagettes + labels
+        // 5/ Save ROI samples and labels
         for (size_t k = 0; k < rois.size(); ++k) {
             const size_t l = global_roi_index++;
             imwrite("../img/out/rois/roi_" + to_string(l) + ".jpg", rois[k]);
@@ -159,20 +158,20 @@ int main(int argc, char* argv[])
 
 void extractROIs(const Mat& image, const vector<float>& horizontal_rhos, const vector<float>& vertical_rhos, bool reject, vector<Mat>& rois)
 {
-    // On suppose ici que horizontal_rhos et horizontal_rhos sont déjà triés !
+    // We assume horizontal_rhos and vertical_rhos are already sorted.
     int height, width;
 
     // int k = 0;
-    // Boucler sur les paires de lignes pour détecter les carrés et extraire les ROIs
+    // Loop over line pairs to detect squares and extract ROIs
     for (size_t i = 0; i < horizontal_rhos.size() - 1; ++i) {
         for (size_t j = 0; j < vertical_rhos.size() - 1; ++j) {
-            // Calculer les coins du carré formé par deux lignes horizontales et deux lignes verticales
+            // Compute the corners of the square formed by two horizontal and two vertical lines
             Point topLeft(cvRound(vertical_rhos[j]), cvRound(horizontal_rhos[i]));
             Point bottomRight(cvRound(vertical_rhos[j + 1]), cvRound(horizontal_rhos[i + 1]));
 
-            // Vérifier les limites de l'image
+            // Check image boundaries
             if (topLeft.x < 0 || topLeft.y < 0 || bottomRight.x > image.cols || bottomRight.y > image.rows) {
-                continue; // Ignorer les carrés en dehors des limites de l'image
+                continue; // Ignore squares outside the image bounds
             }
 
             height = bottomRight.y - topLeft.y;
@@ -180,40 +179,40 @@ void extractROIs(const Mat& image, const vector<float>& horizontal_rhos, const v
 
             // cout << "height = " << height << " - width = " << width << endl;
 
-            // Filtrer les carrés de taille 56 x 56 px
+            // Filter squares close to 56 x 56 px
             if (height < 53 || height > 61) {
-                continue; // Ignorer les carrés de hauteur...
+                continue; // Ignore squares with invalid height
             }
 
             if (width < 53 || width > 61) {
-                continue; // Ignorer les carrés de largeur...
+                continue; // Ignore squares with invalid width
             }
 
             // cout << "k = " << k << " - height = " << height << " - width = " << width << endl;
             // k++;
 
-            // Extraire la ROI (imagette) correspondant au carré détecté
+            // Extract the ROI corresponding to the detected square
             Rect roi(topLeft, bottomRight);
             Mat imagette = image(roi).clone();
 
             Mat imagetteCropped = cropRoi(imagette, 5);
             // imwrite("../img/out/current_roi.jpg", imagetteCropped);
 
-            // Rejeter les imagettes "vides" si le flag est activé
+            // Reject "empty" ROI samples when the flag is enabled
             if (reject) {
-                if (isRoiEmpty(imagetteCropped, 100.0, false)) { // /!\ seuil ajustable
+                if (isRoiEmpty(imagetteCropped, 100.0, false)) { // /!\ Adjustable threshold
                     continue;
                 }
             }
 
-            rois.push_back(imagetteCropped); // Ajouter l'imagette à la liste des ROIs
+            rois.push_back(imagetteCropped); // Add the ROI sample to the list
         }
     }
 }
 
 void augmentROIs(vector<Mat>& rois, unsigned int scale)
 {
-    // Augmentation des ROIs par translation et warping
+    // Augment ROIs by translation and warping
     scale = clamp(scale, 1u, 10u); // scale factor between 1 and 10
 
     vector<Mat> rois_aug;
@@ -236,31 +235,31 @@ void augmentROIs(vector<Mat>& rois, unsigned int scale)
             rois_aug.push_back(roi_odd);
         }
 
-        // x2 Translation droite
+        // x2 Right translation
         if (scale > 1) {
             rois_aug.push_back(warpRoi(roi_even, 0,0,1,1, 4,0,false));
             rois_aug.push_back(warpRoi(roi_odd , 0,0,1,1, 4,0,false));
         }
 
-        // x3 Translation gauche
+        // x3 Left translation
         if (scale > 2) {
             rois_aug.push_back(warpRoi(roi_even, 0,0,1,1,-4,0,false));
             rois_aug.push_back(warpRoi(roi_odd , 0,0,1,1,-4,0,false));
         }
 
-        // x4 Translation bas
+        // x4 Downward translation
         if (scale > 3) {
             rois_aug.push_back(warpRoi(roi_even, 0,0,1,1,0,4,false));
             rois_aug.push_back(warpRoi(roi_odd , 0,0,1,1,0,4,false));
         }
 
-        // x5 Translation haut
+        // x5 Upward translation
         if (scale > 4) {
             rois_aug.push_back(warpRoi(roi_even, 0,0,1,1,0,-4,false));
             rois_aug.push_back(warpRoi(roi_odd , 0,0,1,1,0,-4,false));
         }
 
-        // x6 Warp droite fort
+        // x6 Strong right warp
         if (scale > 5) {
             r = warpRoi(roi_even, 20,20,1.2,0.8,0,0,true);
             rois_aug.push_back(resizeRoi(r,48));
@@ -268,7 +267,7 @@ void augmentROIs(vector<Mat>& rois, unsigned int scale)
             rois_aug.push_back(resizeRoi(r,48));
         }
 
-        // x7 Warp droite léger
+        // x7 Light right warp
         if (scale > 6) {
             r = warpRoi(roi_even, 10,10,1,1,0,0,true);
             rois_aug.push_back(resizeRoi(r,48));
@@ -276,7 +275,7 @@ void augmentROIs(vector<Mat>& rois, unsigned int scale)
             rois_aug.push_back(resizeRoi(r,48));
         }
 
-        // x8 Warp gauche fort
+        // x8 Strong left warp
         if (scale > 7) {
             r = warpRoi(roi_even, -20,-70,0.8,1.2,0,0,true);
             rois_aug.push_back(resizeRoi(r,48));
@@ -284,7 +283,7 @@ void augmentROIs(vector<Mat>& rois, unsigned int scale)
             rois_aug.push_back(resizeRoi(r,48));
         }
 
-        // x9 Warp gauche léger
+        // x9 Light left warp
         if (scale > 8) {
             r = warpRoi(roi_even, -10,-35,1,1,0,0,true);
             rois_aug.push_back(resizeRoi(r,48));
@@ -305,7 +304,7 @@ void augmentROIs(vector<Mat>& rois, unsigned int scale)
 }
 
 bool isRoiEmpty(const Mat& roi, double varianceThreshold, bool info) {
-    // Calcul de la variance de l'intensité des pixels
+    // Compute the pixel intensity variance
     Mat mean, stddev;
     meanStdDev(roi, mean, stddev);
     double variance = stddev.at<double>(0) * stddev.at<double>(0);
@@ -314,25 +313,25 @@ bool isRoiEmpty(const Mat& roi, double varianceThreshold, bool info) {
         cout << "mean = " << mean.at<double>(0) << " - variance = " << variance << endl;
     }
 
-    // Seuil de variance pour identifier les images "vides"
+    // Variance threshold used to identify "empty" images
     return variance < varianceThreshold;
 }
 
 Mat cropRoi(const Mat& roi, int t) {
-    // Vérifier que la ROI est assez grande pour être croppée
+    // Check that the ROI is large enough to be cropped
     if (roi.rows <= 2 * t || roi.cols <= 2 * t) {
-        cerr << "La ROI est trop petite pour être croppée de 't' pixels sur chaque bord." << endl;
-        return roi; // Retourne l'original si trop petit
+        cerr << "The ROI is too small to be cropped by 't' pixels on each side." << endl;
+        return roi; // Return the original if it is too small
     }
 
-    // Définir la région à cropper
+    // Define the cropping region
     Rect croppedRegion(t, t, roi.cols - 2 * t, roi.rows - 2 * t);
 
-    // Retourner l'imagette croppée
+    // Return the cropped ROI sample
     return roi(croppedRegion);
 }
 
-// Rotation 2x2
+// 2x2 rotation matrix
 Matx22d R(double a)
 {
     double c = cos(a);
@@ -346,26 +345,26 @@ Mat warpRoi(const Mat& roi, double theta_deg, double phi_deg,
                             double tx, double ty,
                             bool remap = true)
 {
-    // Déformation d'une ROI suivant une transformation affine
-    double theta = theta_deg * CV_PI / 180.0;   // rotation globale
-    double phi   = phi_deg   * CV_PI / 180.0;   // orientation des axes propres
+    // Deform a ROI using an affine transformation
+    double theta = theta_deg * CV_PI / 180.0;   // global rotation
+    double phi   = phi_deg   * CV_PI / 180.0;   // principal axis orientation
 
-    // Matrice affine 2x2
+    // 2x2 affine matrix
     Matx22d A = R(theta) * R(-phi) * Matx22d(l1, 0,
                                              0,  l2) * R(phi);
 
-    // Matrice de déformation 2x3 avec les translations
+    // 2x3 warp matrix with translations
     Matx23d M(A(0,0), A(0,1), tx,
               A(1,0), A(1,1), ty);
 
     Size dsize;
 
     if (!remap) {
-        // Pas d'ajustement de la taille de sortie
+        // No output size adjustment
         dsize = roi.size();
     }
     else {
-        // Ajustement de la taille de sortie basée sur les 4 coins de la ROI
+        // Adjust the output size based on the 4 ROI corners
         vector<Point2d> corners = {
             {0.0, 0.0},
             {(double)roi.cols, 0.0},
@@ -415,7 +414,7 @@ Mat warpRoi(const Mat& roi, double theta_deg, double phi_deg,
         Scalar(255)
     );
 
-    // Retourne l'imagette warpée
+    // Return the warped ROI sample
     return dst;
 }
 
@@ -458,10 +457,10 @@ Mat resizeRoi(const cv::Mat& img, int outSize = 48)
 Mat remapToBinary(const Mat& roi, int num) {
     Mat resized, binary;
     
-    // Redimension en num x num pixels
+    // Resize to num x num pixels
     resize(roi, resized, Size(num, num), 0, 0, INTER_AREA);
 
-    // Binarisation
+    // Binarization
     threshold(resized, binary, 230, 255, THRESH_BINARY);
 
     return binary;
@@ -480,7 +479,7 @@ vector<double> linspace(double start, double end, int num) {
     return vec;
 }
 
-// Binning des rois en num x num
+// Bin ROIs into a num x num grid
 Mat binToBinary(const Mat& roi, int num) {
     // Mat roiColor;
     Mat binary = Mat::zeros(num, num, CV_8U);
@@ -496,20 +495,20 @@ Mat binToBinary(const Mat& roi, int num) {
     // for (int i = 0; i < verticals.size(); ++i) {
     //     Point pt1(verticals[i], 0.5);
     //     Point pt2(verticals[i], h_roi + 0.5);
-    //     line(roiColor, pt1, pt2, Scalar(0, 255, 0), 1, LINE_AA); // ligne en vert
+    //     line(roiColor, pt1, pt2, Scalar(0, 255, 0), 1, LINE_AA); // green line
     // }
 
     // for (int i = 0; i < horizontals.size(); ++i) {
     //     Point pt1(0.5, horizontals[i]);
     //     Point pt2(w_roi + 0.5, horizontals[i]);
-    //     line(roiColor, pt1, pt2, Scalar(0, 255, 0), 1, LINE_AA); // ligne en vert
+    //     line(roiColor, pt1, pt2, Scalar(0, 255, 0), 1, LINE_AA); // green line
     // }
 
     // imwrite("../img/out/rois_color.jpg", roiColor);
 
     for (size_t i = 0; i < horizontals.size() - 1; ++i) {
         for (size_t j = 0; j < verticals.size() - 1; ++j) {
-            // Coins du carré formé par deux lignes horizontales et deux lignes verticales
+            // Corners of the square formed by two horizontal and two vertical lines
             Point topLeft(cvRound(verticals[j]), cvRound(horizontals[i]));
             Point bottomRight(cvRound(verticals[j + 1]), cvRound(horizontals[i + 1]));
 
@@ -517,7 +516,7 @@ Mat binToBinary(const Mat& roi, int num) {
             Mat pixel = roi(square).clone();
             // imwrite("../img/out/current_pixel.jpg", pixel);
 
-            if (isRoiEmpty(pixel, 100.0, false)) { // /!\ seuil ajustable
+            if (isRoiEmpty(pixel, 100.0, false)) { // /!\ Adjustable threshold
                 binary.at<uchar>(i, j) = 255;
             }
             else {
